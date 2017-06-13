@@ -1,0 +1,104 @@
+#!/usr/bin/env ruby
+
+# hookit is installed as a bundled app, so we need bundler to load it for us
+$:.unshift  '/opt/gonano/hookit/vendor/bundle'
+require 'bundler/setup'
+
+# load hookit/setup to bootstrap hookit and import the dsl
+require 'hookit/setup'
+
+include Hooky::Elasticsearch
+
+# Import service (and start)
+directory '/etc/service/db' do
+  recursive true
+end
+
+directory '/etc/service/db/log' do
+  recursive true
+end
+
+template '/etc/service/db/log/run' do
+  mode 0755
+  source 'log-run.erb'
+  variables ({ svc: "db" })
+end
+
+template '/etc/service/db/run' do
+  mode 0755
+  variables ({ exec: "elasticsearch -Epath.conf=/data/etc/elasticsearch/ 2>&1" })
+end
+
+service 'db' do
+  action :enable
+  init :runit
+end
+
+ensure_socket 'db' do
+  port '9200'
+  action :listening
+end
+
+# Attach the IP if provided
+if payload[:ips]
+  # set up persistance
+  file "/etc/nanoinit.d/eth00" do
+    content <<-EOF
+#!/bin/bash
+case $1 in
+  start)
+    if [[ ! $(ifconfig) =~ eth0:0 ]]; then
+      ifconfig eth0:0 #{payload[:ips][:default]}
+      arping -A -c 10 -I eth0 #{payload[:ips][:default]}
+    fi
+    ;;
+  stop)
+    if [[ $(ifconfig) =~ eth0:0 ]]; then
+      ifconfig eth0:0 down
+    fi
+    ;;
+  *)
+    echo "$0 start|stop"
+    exit 1
+    ;;
+esac
+EOF
+    mode 0755
+  end
+
+  # bring up interface
+  execute "bring up vip" do
+    command <<-EOF
+      /etc/nanoinit.d/eth00 start
+    EOF
+  end
+end
+
+if Dir.exist? "/opt/nanobox/cron"
+  directory '/etc/service/cron'
+
+  hook_file '/etc/service/cron/run' do
+    source 'cron'
+    mode 0755
+  end
+
+  service 'cron' do
+    action :enable
+    only_if { File.exist?('/etc/service/cron/run') }
+  end
+end
+
+# Wait for ready
+tries=1
+begin
+  execute "wait for ready" do
+    command "curl -X get -H 'Content-Type: application/json' '127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=50s'"
+  end
+rescue Exception => e
+  if tries < 10
+    sleep tries
+    retry
+  else
+    raise e
+  end
+end
