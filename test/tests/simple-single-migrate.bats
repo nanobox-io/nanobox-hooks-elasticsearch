@@ -20,6 +20,7 @@ echo_lines() {
 
 @test "Start Old ${service_name}" {
   run run_hook "simple-single-old" "start" "$(payload start)"
+  echo_lines
   [ "$status" -eq 0 ]
   # Verify
   wait_for_running "simple-single-old"
