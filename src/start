@@ -96,7 +96,7 @@ begin
     command "curl -X get -H 'Content-Type: application/json' '127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=50s'"
   end
 rescue Exception => e
-  if tries < 2
+  if tries < 10
     sleep tries
     retry
   else
