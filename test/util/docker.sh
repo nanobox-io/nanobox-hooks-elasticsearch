@@ -24,7 +24,7 @@ start_container() {
   docker run \
     --name=$name \
     -d \
-    -m 128M \
+    -m 256M \
     -e "PATH=$(path)" \
     --privileged \
     --net=nanobox \
