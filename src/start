@@ -89,8 +89,9 @@ if Dir.exist? "/opt/nanobox/cron"
 end
 
 # Wait for ready
-tries=1
+tries=0
 begin
+  tries = tries + 1
   execute "wait for ready" do
     command "curl -X get -H 'Content-Type: application/json' '127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=50s'"
   end
