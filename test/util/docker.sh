@@ -24,7 +24,7 @@ start_container() {
   docker run \
     --name=$name \
     -d \
-    -m 256M \
+    -m 512M \
     -e "PATH=$(path)" \
     --privileged \
     --net=nanobox \
@@ -41,7 +41,6 @@ stop_container() {
 path() {
   paths=(
     "/opt/gonano/sbin"
-    "/opt/gonano/bin"
     "/opt/gonano/bin"
     "/usr/local/sbin"
     "/usr/local/bin"
