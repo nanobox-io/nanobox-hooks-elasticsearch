@@ -20,11 +20,12 @@ run_hook() {
 start_container() {
   name=$1
   ip=$2
+  ram=${3:-256}
 
   docker run \
     --name=$name \
     -d \
-    -m 512M \
+    -m ${ram}M \
     -e "PATH=$(path)" \
     --privileged \
     --net=nanobox \
