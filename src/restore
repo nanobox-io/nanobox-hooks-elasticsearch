@@ -1,63 +1,14 @@
-#!/usr/bin/env ruby
+#!/usr/bin/env bash
 
-# hookit is installed as a bundled app, so we need bundler to load it for us
-$:.unshift  '/opt/gonano/hookit/vendor/bundle'
-require 'bundler/setup'
+exec 6<&0
 
-# load hookit/setup to bootstrap hookit and import the dsl
-require 'hookit/setup'
+id=$(cat /proc/sys/kernel/random/uuid)
 
-include Hooky::Elasticsearch
+tar -x -C /var/tmp/${id} <&6
 
-# Download from warehouse
-execute "downlaod snapshot from warehouse" do
-  command "scp -o StrictHostKeyChecking=no #{payload[:warehouse][:host]}:/data/var/db/elasticsearch/#{payload[:warehouse][:backup_id]}.tgz /var/tmp/#{payload[:warehouse][:backup_id]}.tgz"
-end
-
-# Check remote md5sum
-remote_sum = `ssh -o StrictHostKeyChecking=no #{payload[:warehouse][:host]} "md5sum /data/var/db/elasticsearch/#{payload[:warehouse][:backup_id]}.tgz"`.to_s.strip.split(' ').first
-
-# Check local md5sum
-local_sum = `md5sum /var/tmp/#{payload[:warehouse][:backup_id]}.tgz`.to_s.strip.split(' ').first
-
-# Ensure checksum match
-if remote_sum != local_sum
-  puts 'checksum mismatch'
-  exit 1
-end
-
-# Uncompress snapshot
-execute "uncompress the snapshot" do
-  command "tar -xzf /var/tmp/#{payload[:warehouse][:backup_id]}.tgz -C /var/tmp"
-end
-
-# Create snapshot repository
-execute "register snapshot" do
-  command "curl -X PUT -H 'Content-Type: application/json' '127.0.0.1:9200/_snapshot/#{payload[:warehouse][:backup_id]}' -d '{\"type\": \"fs\",\"settings\": {\"location\": \"/var/tmp/#{payload[:warehouse][:backup_id]}\",\"compress\": true}}'"
-end
-
-# Get data snapshot
-execute "snapshot data" do
-  command "curl -X GET -H 'Content-Type: application/json' '127.0.0.1:9200/_snapshot/#{payload[:warehouse][:backup_id]}/_all?pretty'"
-end
-
-# Close all indexes
-execute "close indexes" do
-  command "curl -X POST -H 'Content-Type: application/json' '127.0.0.1:9200/_all/_close?pretty'"
-end
-
-# Restore snapshot
-execute "restore snapshot" do
-  command "curl -X POST -H 'Content-Type: application/json' '127.0.0.1:9200/_snapshot/#{payload[:warehouse][:backup_id]}/backup/_restore?wait_for_completion=true&pretty'"
-end
-
-# Unregister snapshot
-execute "unregister snapshot" do
-  command "curl -X DELETE -H 'Content-Type: application/json' '127.0.0.1:9200/_snapshot/#{payload[:warehouse][:backup_id]}'"
-end
-
-# delete the snapshot
-directory '/var/tmp/#{payload[:warehouse][:backup_id]}' do
-  action :delete
-  not_if { !Dir.exist?('/var/tmp/#{payload[:warehouse][:backup_id]}') }
-end
+curl -X PUT -H "Content-Type: application/json" "127.0.0.1:9200/_snapshot/${id}" -d "{\"type\": \"fs\",\"settings\": {\"location\": \"/var/tmp/${id}\",\"compress\": true}}"
+curl -X GET -H "Content-Type: application/json" "127.0.0.1:9200/_snapshot/${id}/_all?pretty"
+curl -X POST -H "Content-Type: application/json" "127.0.0.1:9200/_all/_close?pretty"
+curl -X POST -H "Content-Type: application/json" "127.0.0.1:9200/_snapshot/${id}/backup/_restore?wait_for_completion=true&pretty"
+curl -X DELETE -H "Content-Type: application/json" "127.0.0.1:9200/_snapshot/${id}"
+rm -rf "/var/tmp/${id}"
