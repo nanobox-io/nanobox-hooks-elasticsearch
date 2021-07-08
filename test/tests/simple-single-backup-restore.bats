@@ -10,10 +10,10 @@ echo_lines() {
 }
 
 @test "Start Container" {
-  start_container "backup-restore" "192.168.0.2"
+  start_container "backup-restore" "192.168.0.2" 512
   run run_hook "backup-restore" "configure" "$(payload configure)"
   echo_lines
-  [ "$status" -eq 0 ] 
+  [ "$status" -eq 0 ]
   run run_hook "backup-restore" "start" "$(payload start)"
   [ "$status" -eq 0 ]
   # Verify
@@ -23,7 +23,7 @@ echo_lines() {
 }
 
 @test "Start Backup Container" {
-  start_container "backup" "192.168.0.9"
+  start_container "backup" "192.168.0.9" 512
   # generate some keys
   run run_hook "backup" "configure" "$(payload configure)"
   echo_lines

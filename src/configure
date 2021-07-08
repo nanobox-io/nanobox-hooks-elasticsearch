@@ -75,14 +75,23 @@ if ['default', 'primary', 'secondary'].include? payload[:member][:role]
     owner 'gonano'
     group 'gonano'
   end
-  
+
   if payload[:platform] == 'local'
     maxmemory = 128
     appname   = 'nanobox'
   else
     total_mem = `vmstat -s | grep 'total memory' | awk '{print $1}'`.to_i
     cgroup_mem = `cat /sys/fs/cgroup/memory/memory.limit_in_bytes`.to_i
-    maxmemory = [ total_mem / 1024, cgroup_mem / 1024 / 1024 ].min
+    # Don't go above 80,000 MiB, because somewhere around 32 GiB is when the JVM
+    # switches from "compressed OOPs" to regular ones, which consume twice the
+    # space in RAM, and negatively impact performance. 80,000 * 0.4 == 32,000,
+    # which is safe.
+    # [https://www.elastic.co/guide/en/elasticsearch/guide/current/heap-sizing.html]
+    # We also don't want to go below 128 MiB, or ES will fail to start at all.
+    # The start hook will verify whether this amount of RAM is available before
+    # actually starting the service, so we can safely set it to that size here
+    # in the configuration hook.
+    maxmemory = [ [ total_mem / 1024, cgroup_mem / 1024 / 1024, 32000 ].min, 128 ].max
     appname   = 'nanobox'
   end
 
@@ -125,14 +134,14 @@ if ['default', 'primary', 'secondary'].include? payload[:member][:role]
     ["/var/log/gonano/db/current"].each do |log_file|
       if not ::File.exists? "#{log_file}"
         parent = File.expand_path("..", "#{log_file}")
-        
+
         # create the parent directory
         directory parent do
           owner 'gonano'
           group 'gonano'
           recursive true
         end
-        
+
         # create the log_file
         file "#{log_file}" do
           owner 'gonano'

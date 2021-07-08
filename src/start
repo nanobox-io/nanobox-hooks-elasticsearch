@@ -9,6 +9,16 @@ require 'hookit/setup'
 
 include Hooky::Elasticsearch
 
+needmemory = `grep '^-Xms' '/data/etc/elasticsearch/jvm.options' | sed 's/-Xms\\([0-9]\\+\\)m/\\1/'`.to_i
+
+free_mem = `vmstat -s | grep 'free memory' | awk '{print $1}'`.to_i
+cgroup_mem = `cat /sys/fs/cgroup/memory/memory.limit_in_bytes`.to_i - `cat /sys/fs/cgroup/memory/memory.usage_in_bytes`.to_i
+freememory = [ free_mem / 1024, cgroup_mem / 1024 / 1024 ].min
+
+if needmemory >= freememory
+  raise NoMemoryError, "Not enough RAM to start ElasticSearch. Have #{freememory} MiB, but need #{needmemory} MiB. Try scaling up your server."
+end
+
 # Import service (and start)
 directory '/etc/service/db' do
   recursive true

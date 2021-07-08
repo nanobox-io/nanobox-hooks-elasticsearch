@@ -10,13 +10,13 @@ echo_lines() {
 }
 
 @test "Start Production Container" {
-  start_container "simple-single-production" "192.168.0.2"
+  start_container "simple-single-production" "192.168.0.2" 512
 }
 
 @test "Configure Production Container" {
   run run_hook "simple-single-production" "configure" "$(payload configure)"
   echo_lines
-  [ "$status" -eq 0 ] 
+  [ "$status" -eq 0 ]
 }
 
 @test "Start Production ${service_name}" {
@@ -30,7 +30,7 @@ echo_lines() {
 
 @test "Verify IP" {
   run docker exec simple-single-production bash -c "ifconfig | grep 192.168.0.3"
-  [ "$status" -eq 0 ] 
+  [ "$status" -eq 0 ]
 }
 
 @test "Insert Production ${service_name} Data" {
@@ -52,7 +52,7 @@ echo_lines() {
 
 @test "Verify No IP" {
   run docker exec simple-single-production bash -c "ifconfig | grep 192.168.0.3"
-  [ "$status" -eq 1 ] 
+  [ "$status" -eq 1 ]
 }
 
 @test "Stop Production Container" {
